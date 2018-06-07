@@ -41,3 +41,34 @@ class TodosHandler(object):
         cur.close()
         conn.close()
         resp.status = falcon.HTTP_200
+
+    def on_put(self, req, resp, todoID):
+        body = json.loads(req.req_body)
+        try:
+            if not set(['title', 'status']).issubset(body.keys()):
+                raise Exception('request does not have a title or status')
+            body['id'] = int(todoID)
+            conn = psycopg2.connect(host=os.environ["DB_HOST"],
+                                    dbname=os.environ["DB_NAME"],
+                                    user=os.environ["DB_USER"],
+                                    password=os.environ["DB_PASSWORD"])
+            cur = conn.cursor()
+            cur.execute(
+                """Update public.todo set title = '{title}',
+                status = '{status}' where id = {id}""".format(**body))
+        except Exception as err:
+            resp.set_header('Content-Type', 'application/json')
+            resp.body = json.dumps({
+                u'ERROR': err}, sort_keys=False)
+            resp.status = falcon.HTTP_404
+
+        finally:
+            if cur.rowcount == 1:
+                conn.commit()
+                resp.set_header('Content-Type', 'application/json')
+                resp.body = json.dumps(body)
+                resp.status = falcon.HTTP_200
+            else:
+                resp.status = falcon.HTTP_404
+            cur.close()
+            conn.close()
